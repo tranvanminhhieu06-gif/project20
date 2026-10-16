@@ -1,9 +1,8 @@
 // Dữ liệu sản phẩm — nguồn: ảnh báo giá + "Báo giá thiết bị chăm sóc sức khoẻ.pdf" + HDSD cân.
 // Mục đánh dấu verify:true cần khách hàng xác nhận (tài liệu ghi khác nhau).
-const RING_COLORS = [
-  { id: 'den', name: 'Đen nhám', hex: '#1d1d20' },
-  { id: 'bac', name: 'Bạc ánh kim', hex: '#cfd3d8' }
-];
+// image: ảnh lớn hiển thị khi chọn màu (chỉ gán khi có ảnh thật đúng màu đó).
+const BLACK = { id: 'den', name: 'Đen nhám', hex: '#1d1d20' };
+const SILVER = { id: 'bac', name: 'Bạc ánh kim', hex: '#cfd3d8' };
 const RING_SIZES = ['7', '8', '9', '10', '11', '12'];
 
 const products = [
@@ -15,7 +14,7 @@ const products = [
     tagline: 'Nhỏ gọn, theo dõi sức khoẻ 24/7.',
     price: 1590000,
     badge: 'Bán chạy',
-    image: '/img/ring-active.webp',
+    image: '/img/ring-active.webp', ogImage: '/img/og-active.jpg',
     dark: true,
     gallery: [
       { src: '/img/ring-active.webp', alt: 'Nhẫn Meal Ring Active màu đen nhám, mặt trong có cảm biến' },
@@ -26,7 +25,7 @@ const products = [
       { src: '/img/app-spo2.webp', alt: 'Màn hình app the Meal: nồng độ oxy máu SpO2' },
       { src: '/img/size-guide.webp', alt: 'Hướng dẫn đo size nhẫn 4 bước và bảng quy đổi' }
     ],
-    colors: RING_COLORS,
+    colors: [{ ...BLACK, image: '/img/ring-active.webp' }, SILVER],
     sizes: RING_SIZES,
     summary: 'Nhẫn nhỏ gọn theo dõi sức khoẻ liên tục 24/7. Kết hợp cùng AI the Meal, thiết bị giúp bạn hiểu cơ thể và cải thiện lối sống mỗi ngày.',
     highlights: ['2.7g', '5ATM', 'Pin 5–7 ngày', 'Size 7–12'],
@@ -61,7 +60,7 @@ const products = [
     price: 2990000,
     badge: 'Cao cấp',
     featured: true,
-    image: '/img/ring-pro.webp',
+    image: '/img/ring-pro.webp', ogImage: '/img/og-pro.jpg',
     dark: true,
     gallery: [
       { src: '/img/ring-pro.webp', alt: 'Nhẫn Meal Ring Active Pro hợp kim titan màu bạc' },
@@ -73,16 +72,17 @@ const products = [
       { src: '/img/app-temp.webp', alt: 'Màn hình app the Meal: xu hướng thân nhiệt' },
       { src: '/img/size-guide.webp', alt: 'Hướng dẫn đo size nhẫn 4 bước và bảng quy đổi' }
     ],
-    colors: RING_COLORS,
+    // Ảnh chính là nhẫn bạc => màu mặc định phải là Bạc để ảnh khớp lựa chọn.
+    colors: [{ ...SILVER, image: '/img/ring-pro.webp' }, BLACK],
     sizes: RING_SIZES,
-    summary: 'Không chỉ là thiết bị theo dõi — Active Pro phân tích toàn diện, đưa ra khuyến nghị dinh dưỡng & lối sống, và cảnh báo sớm khi có dấu hiệu bất thường. Bản hợp kim titan cao cấp — pin bền hơn, phân tích sâu hơn.',
+    summary: 'Không chỉ là thiết bị theo dõi — Active Pro phân tích toàn diện, đưa ra khuyến nghị dinh dưỡng & lối sống, và nhắc bạn khi chỉ số thay đổi khác thường so với mức quen thuộc. Bản hợp kim titan cao cấp, chip Nordic mới — phân tích sâu hơn.',
     highlights: ['Hợp kim titan', '3g', 'Chip Nordic nRF54L15', 'Size 7–12'],
     metrics: [
       ['Nhịp tim & SpO₂', 'Theo dõi liên tục'], ['Giấc ngủ', 'Chấm điểm mỗi đêm'], ['Căng thẳng & HRV', 'Cân bằng cảm xúc'],
       ['Vận động & Calo', 'Bước chân, năng lượng'], ['Nhiệt độ cơ thể', 'Theo dõi xu hướng'], ['AI hỗ trợ', 'Gợi ý cá nhân hoá']
     ],
     benefits: [
-      'Phân tích toàn diện, cảnh báo sớm dấu hiệu bất thường',
+      'Phân tích toàn diện, nhắc khi chỉ số thay đổi khác thường',
       'Khuyến nghị dinh dưỡng & lối sống cá nhân hoá bằng AI',
       'Chip Nordic nRF54L15 + cảm biến GOODiX, gia tốc 6 trục',
       'Theo dõi sức khoẻ cả gia đình trên một app'
@@ -96,7 +96,7 @@ const products = [
       ['Chống nước', '5ATM (~50m)'],
       ['Thời gian dùng pin', '5–7 ngày'],
       ['Kích cỡ', 'Size 7 – 12'],
-      ['Màu sắc', 'Đen nhám, Bạc ánh kim', true],
+      ['Màu sắc', 'Bạc ánh kim, Đen nhám', true],
       ['Kết nối', 'Bluetooth BLE · app the Meal (Android/iOS)'],
       ['Chứng nhận', 'CE-RED · FCC · RoHS']
     ]
@@ -109,7 +109,7 @@ const products = [
     tagline: 'Một bước lên cân — đọc vị hơn 40 chỉ số cơ thể.',
     price: 1890000,
     badge: '8 điện cực',
-    image: '/img/scale.webp',
+    image: '/img/scale.webp', ogImage: '/img/og-scale.jpg',
     dark: false,
     gallery: [
       { src: '/img/scale.webp', alt: 'Cân Meal Fit Insight màu đen cùng app the Meal trên điện thoại' },

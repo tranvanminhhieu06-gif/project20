@@ -354,6 +354,8 @@ p{margin:0 0 1em}
 .tablist{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
 .tablist button{border:0;background:transparent;padding:14px 18px;font-weight:700;color:var(--slate);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;min-height:48px}
 .tablist button[aria-selected="true"]{color:var(--navy);border-color:var(--green)}
+/* Mobile: cho tab xuống dòng thay vì bị cắt chữ ở mép phải */
+@media (max-width:640px){.tablist{flex-wrap:wrap;overflow:visible;gap:0 2px}.tablist button{padding:12px 12px}}
 .tabpanel{padding:28px 0}
 .spec-table{width:100%;border-collapse:collapse}
 .spec-table th,.spec-table td{padding:12px 0;border-bottom:1px solid var(--line);text-align:left;font-size:15px}
@@ -416,6 +418,8 @@ p{margin:0 0 1em}
 .fab .call{animation:pulse 2.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(75,206,151,.6)}70%{box-shadow:0 0 0 16px rgba(75,206,151,0)}100%{box-shadow:0 0 0 0 rgba(75,206,151,0)}}
 @media (max-width:900px){body.has-sticky .fab{bottom:92px}}
+/* Mobile: nút nổi nhỏ & sát mép hơn để không che giá/CTA ở màn hình đầu */
+@media (max-width:720px){.fab{right:10px;bottom:14px;gap:10px}.fab a{width:46px;height:46px;font-size:12px}.fab svg{width:20px;height:20px}body.has-sticky .fab{bottom:84px}}
 
 /* ---------- Footer ---------- */
 .footer{background:var(--navy);color:#C9D2E3;padding:64px 0 24px;font-size:15px}
@@ -449,11 +453,12 @@ p{margin:0 0 1em}
 .status{display:inline-block;padding:3px 10px;border-radius:var(--pill);font-size:12px;font-weight:700;background:var(--green-50);color:var(--green-ink)}
 
 /* ---------- Reveal ---------- */
-.reveal{opacity:0;transform:translateY(18px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
-.reveal.in{opacity:1;transform:none}
+/* Chỉ ẩn khi app.js đã chạy (thêm class js-reveal) — JS lỗi thì nội dung vẫn hiện */
+.js-reveal .reveal{opacity:0;transform:translateY(18px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.js-reveal .reveal.in{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
-  .reveal{opacity:1;transform:none}
+  .reveal,.js-reveal .reveal{opacity:1;transform:none}
 }
 /* grid children may shrink below content width (prevents horizontal overflow) */
 .pd>*,.split>*,.cart-layout>*,.grid>*,.slide .wrap>*,.final>*{min-width:0}
@@ -493,3 +498,13 @@ p{margin:0 0 1em}
 .flow .n{width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;font-weight:800;display:grid;place-items:center;margin-bottom:6px}
 @media (max-width:860px){.flow{grid-template-columns:1fr 1fr}}
 @media (max-width:520px){.flow{grid-template-columns:1fr}}
+
+/* Ô đồng ý xử lý dữ liệu */
+.check{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:var(--slate);cursor:pointer;font-weight:400}
+.check input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:var(--green-ink)}
+.check a{color:var(--green-ink)}
+/* Khung hướng dẫn gọi / nhắn Zalo khi website chưa nhận đơn trực tuyến */
+.order-fallback{padding:16px;border:1.5px solid #F3C9A8;border-radius:var(--r);background:#FFF8F2}
+.order-fallback p{margin:0 0 8px}
+.order-fallback .textarea{font-size:14px;min-height:0;background:#fff}
+#gNote{margin:10px 0 0}
