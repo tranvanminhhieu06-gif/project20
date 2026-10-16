@@ -3,8 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 // Set BASE_PATH to repository name for GitHub Pages
-process.env.BASE_PATH = process.env.BASE_PATH || '/project20';
+process.env.BASE_PATH = process.env.BASE_PATH ?? '/project20';
+// Canonical/og:url/sitemap phải trỏ đúng nơi đang host. Khi dùng tên miền riêng: SITE_URL=https://themeal.vn BASE_PATH= npm run build
+process.env.SITE_URL = process.env.SITE_URL || 'https://tranvanminhhieu06-gif.github.io';
 process.env.NODE_ENV = 'production';
+process.env.STATIC_BUILD = '1';
 
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -86,5 +89,15 @@ for (const pol of views.POLICIES) {
 }
 
 writePage('404.html', views.notFound());
+
+// 4. SEO files. Lưu ý: với GitHub Pages dạng /project20, Google chỉ đọc robots.txt ở gốc tên miền —
+// hãy khai báo sitemap trong Google Search Console. Khi chuyển sang tên miền riêng thì robots.txt có hiệu lực.
+writePage('sitemap.xml', views.sitemapXml());
+writePage('robots.txt', views.robotsTxt());
+
+if (!require('../src/config').orderEndpoint) {
+  console.warn('\n⚠  ORDER_ENDPOINT chưa được đặt: bản tĩnh KHÔNG nhận được đơn hàng/form liên hệ.');
+  console.warn('   Khách sẽ được hướng dẫn gọi điện/nhắn Zalo. Xem scripts/google-apps-script.gs để bật nhận đơn.\n');
+}
 
 console.log('Static build completed successfully!');

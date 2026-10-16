@@ -2,7 +2,11 @@ const cfg = require('./config');
 const { icon } = require('./icons');
 const { products, bySlug, publicProduct } = require('./products');
 
+const fs = require('fs');
+const pathMod = require('path');
+
 const DEV = process.env.NODE_ENV !== 'production';
+const STATIC = process.env.STATIC_BUILD === '1';
 const BASE = process.env.BASE_PATH || '';
 const u = path => {
   if (!path) return BASE ? `${BASE}/` : '/';
@@ -12,6 +16,14 @@ const u = path => {
   return `${BASE}${clean}`;
 };
 
+const abs = path => cfg.siteUrl + u(path);
+// Ảnh có bản thu nhỏ -480.webp (tạo sẵn trong public/img) => thêm srcset cho màn hình nhỏ.
+const IMG_DIR = pathMod.join(__dirname, '..', 'public');
+const small = src => src.replace(/\.webp$/, '-480.webp');
+const hasSmall = src => /\.webp$/.test(src) && fs.existsSync(pathMod.join(IMG_DIR, small(src)));
+const ORIG_W = { '/img/ring-active.webp': 720, '/img/ring-pro.webp': 720, '/img/scale.webp': 800 }; // còn lại 1000px
+const srcset = (src, sizes) => hasSmall(src) ? ` srcset="${u(small(src))} 480w, ${u(src)} ${ORIG_W[src] || 1000}w" sizes="${sizes}"` : '';
+const thumb = src => u(hasSmall(src) ? small(src) : src);
 const esc = (s = '') => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const vnd = n => Number(n).toLocaleString('vi-VN').replace(/,/g, '.') + '₫';
 const todo = (label = 'Cần bổ sung') => `<span class="todo">${esc(label)}</span>`;
@@ -21,15 +33,19 @@ const C = cfg.company;
 /* ------------------------------------------------------------------ */
 /* Layout                                                              */
 /* ------------------------------------------------------------------ */
-function layout({ title, desc, path = '/', body, jsonld = [], ogImage = '/img/card-pro.webp', bodyClass = '', noindex = false }) {
+const DEFAULT_DESC = 'the.Meal — hệ sinh thái thiết bị chăm sóc sức khoẻ cho người Việt: nhẫn thông minh Meal Ring Active, Active Pro và cân thông minh Meal Fit Insight. Đồng bộ app the Meal, AI gợi ý cá nhân hoá.';
+// Trang Tin tức chưa có bài => ẩn khỏi menu/sitemap ở bản thật cho tới khi có nội dung.
+const SHOW_NEWS = DEV;
+function layout({ title, desc, path = '/', body, jsonld = [], ogImage = '/img/og-pro.jpg', bodyClass = '', noindex = false }) {
   const fullTitle = title ? `${title} | the.Meal` : 'the.Meal — Nhẫn & cân thông minh chăm sóc sức khoẻ';
-  const url = cfg.siteUrl + (BASE ? BASE + path : path);
+  const url = abs(path);
+  const description = desc || DEFAULT_DESC;
   const navItems = [
     [u('/'), 'Trang chủ'], [u('/san-pham'), 'Sản phẩm'], [u('/#he-sinh-thai'), 'App the Meal'],
-    [u('/hop-tac'), 'Hợp tác đại lý'], [u('/tin-tuc'), 'Tin tức'], [u('/lien-he'), 'Liên hệ']
+    [u('/hop-tac'), 'Hợp tác đại lý'], ...(SHOW_NEWS ? [[u('/tin-tuc'), 'Tin tức']] : []), [u('/lien-he'), 'Liên hệ']
   ];
   const orgLd = {
-    '@context': 'https://schema.org', '@type': 'Organization', name: C.name, url: cfg.siteUrl,
+    '@context': 'https://schema.org', '@type': 'Organization', name: C.name, url: abs('/'),
     email: C.email, telephone: C.hotlineRaw, address: { '@type': 'PostalAddress', streetAddress: C.address, addressCountry: 'VN' },
     sameAs: C.socials.map(x => x.url)
   };
@@ -39,12 +55,15 @@ function layout({ title, desc, path = '/', body, jsonld = [], ogImage = '/img/ca
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(fullTitle)}</title>
-<meta name="description" content="${esc(desc || 'the.Meal — hệ sinh thái thiết bị chăm sóc sức khoẻ cho người Việt: nhẫn thông minh Meal Ring Active, Active Pro và cân thông minh Meal Fit Insight. Đồng bộ app the Meal, AI gợi ý cá nhân hoá.')}">
+<meta name="description" content="${esc(description)}">
 ${noindex ? '<meta name="robots" content="noindex">' : ''}
 <link rel="canonical" href="${esc(url)}">
 <meta property="og:type" content="website"><meta property="og:locale" content="vi_VN">
+<meta property="og:site_name" content="the.Meal">
 <meta property="og:title" content="${esc(fullTitle)}"><meta property="og:url" content="${esc(url)}">
-<meta property="og:image" content="${esc(cfg.siteUrl + u(ogImage))}">
+<meta property="og:description" content="${esc(description)}">
+<meta property="og:image" content="${esc(abs(ogImage))}">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0B1C3A">
 <link rel="icon" href="${u('/favicon.svg')}" type="image/svg+xml">
 <link rel="preload" href="${u('/fonts/be-vietnam-pro-vietnamese-800-normal.woff2')}" as="font" type="font/woff2" crossorigin>
@@ -53,11 +72,11 @@ ${noindex ? '<meta name="robots" content="noindex">' : ''}
 </head>
 <body class="${bodyClass}">
 <a class="skip" href="#main">Bỏ qua đến nội dung chính</a>
-<div class="topbar"><div class="wrap">
+<aside class="topbar" aria-label="Thông tin nhanh"><div class="wrap">
   <span>${icon('phone')} Hotline tư vấn: <a href="tel:${C.hotlineRaw}">${C.hotline}</a></span>
   <span>${icon('package')} Thanh toán khi nhận hàng (COD)</span>
   <span>${icon('shield')} Chứng nhận CE · FCC · RoHS</span>
-</div></div>
+</div></aside>
 <header class="header" id="top">
   <div class="wrap">
     <a class="logo" href="${u('/')}" aria-label="the.Meal — trang chủ">the<b>.</b>Meal</a>
@@ -75,16 +94,20 @@ ${noindex ? '<meta name="robots" content="noindex">' : ''}
 ${body}
 </main>
 ${footer()}
-<div class="fab" aria-label="Liên hệ nhanh">
+<aside class="fab" aria-label="Liên hệ nhanh">
   <a class="zalo" href="${esc(C.zalo)}" target="_blank" rel="noopener" aria-label="Chat Zalo với the.Meal">Zalo</a>
   <a class="call" href="tel:${C.hotlineRaw}" aria-label="Gọi hotline ${C.hotline}">${icon('phone')}</a>
-</div>
+</aside>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
 window.__BASE__=${JSON.stringify(BASE)};
+window.__STATIC__=${STATIC};
+window.__ORDER_ENDPOINT__=${JSON.stringify(cfg.orderEndpoint)};
+window.__SHOP__=${JSON.stringify({ hotline: C.hotline, hotlineRaw: C.hotlineRaw, zalo: C.zalo })};
 window.__PRODUCTS__=${JSON.stringify(products.map(p => {
   const pub = publicProduct(p);
   pub.image = u(pub.image);
+  pub.colors = pub.colors.map(c => c.image ? { ...c, image: u(c.image) } : c);
   return pub;
 })).replace(/</g, '\\u003c')};
 </script>
@@ -110,7 +133,7 @@ function footer() {
       </div>
       <div>
         <h3>Chính sách</h3>
-        <ul>${POLICIES.map(p => `<li><a href="${u('/chinh-sach/' + p.slug)}">${p.title}</a></li>`).join('')}</ul>
+        <ul>${publishedPolicies().map(p => `<li><a href="${u('/chinh-sach/' + p.slug)}">${p.title}</a></li>`).join('')}</ul>
       </div>
       <div>
         <h3>Liên hệ</h3>
@@ -119,7 +142,7 @@ function footer() {
           <li>${esc(C.address)}</li>
           <li><a href="tel:${C.hotlineRaw}">Hotline: ${C.hotline}</a></li>
           <li><a href="mailto:${C.email}">${C.email}</a></li>
-          <li>MST: ${C.taxCode ? esc(C.taxCode) : todo()}</li>
+          ${C.taxCode ? `<li>MST: ${esc(C.taxCode)}</li>` : (DEV ? `<li>MST: ${todo()}</li>` : '')}
         </ul>
       </div>
     </div>
@@ -139,7 +162,7 @@ function productCard(p, headingTag = 'h3') {
   return `<article class="p-card reveal${p.featured ? ' featured' : ''}">
     <div class="p-media${p.dark ? '' : ' light'}">
       ${p.badge ? `<span class="badge${p.featured ? '' : ' dark'}">${esc(p.badge)}</span>` : ''}
-      <img src="${u(p.image)}" alt="${esc(p.gallery[0].alt)}" width="720" height="720" loading="lazy">
+      <img src="${u(p.image)}"${srcset(p.image, '(max-width:640px) 92vw, (max-width:960px) 46vw, 360px')} alt="${esc(p.gallery[0].alt)}" width="720" height="720" loading="lazy">
     </div>
     <div class="p-body">
       <span class="p-cat">${esc(p.category)}</span>
@@ -165,7 +188,7 @@ function compareTable() {
     ['Chip / cảm biến', 'Tiêu chuẩn', 'Nordic nRF54L15 · GOODiX + 6 trục'],
     ['Nhịp tim · SpO₂ · Giấc ngủ · HRV', '<span class="yes">✓ Có</span>', '<span class="yes">✓ Có</span>'],
     ['Nhiệt độ cơ thể · Vận động', '<span class="yes">✓ Có</span>', '<span class="yes">✓ Có</span>'],
-    ['AI phân tích & gợi ý', 'Gợi ý cải thiện thói quen', 'Phân tích toàn diện, khuyến nghị dinh dưỡng & cảnh báo sớm'],
+    ['AI phân tích & gợi ý', 'Gợi ý cải thiện thói quen', 'Phân tích toàn diện, khuyến nghị dinh dưỡng & nhắc khi chỉ số khác thường'],
     ['Chống nước · Pin', '5ATM · 5–7 ngày', '5ATM · 5–7 ngày'],
     ['Phù hợp', 'Bắt đầu sống khoẻ, thích gọn nhẹ', 'Theo dõi toàn diện, quà tặng cao cấp']
   ];
@@ -173,7 +196,7 @@ function compareTable() {
     <caption class="sr-only">So sánh Meal Ring Active và Meal Ring Active Pro</caption>
     <thead><tr><th scope="col">Tiêu chí</th><th scope="col">Meal Ring Active</th><th scope="col" class="pro">Meal Ring Active Pro</th></tr></thead>
     <tbody>${rows.map(r => `<tr><th scope="row">${r[0]}</th><td>${r[1]}</td><td class="pro">${r[2]}</td></tr>`).join('')}
-    <tr><th scope="row"></th><td><a class="link" href="${u('/san-pham/' + a.slug)}">Xem Active ${icon('arrow')}</a></td><td class="pro"><a class="link" href="${u('/san-pham/' + b.slug)}">Xem Active Pro ${icon('arrow')}</a></td></tr>
+    <tr><th scope="row"><span class="sr-only">Xem chi tiết</span></th><td><a class="link" href="${u('/san-pham/' + a.slug)}">Xem Active ${icon('arrow')}</a></td><td class="pro"><a class="link" href="${u('/san-pham/' + b.slug)}">Xem Active Pro ${icon('arrow')}</a></td></tr>
     </tbody></table></div>`;
 }
 
@@ -214,7 +237,7 @@ function certs() {
 }
 
 const FAQS = [
-  ['Meal Ring Active và Active Pro khác nhau thế nào?', 'Cả hai cùng đo nhịp tim, SpO₂, giấc ngủ, HRV, nhiệt độ cơ thể và vận động 24/7. Active Pro làm từ hợp kim titan, dùng chip Nordic nRF54L15 cùng cảm biến GOODiX + 6 trục, và được AI phân tích toàn diện hơn: khuyến nghị dinh dưỡng, lối sống và cảnh báo sớm khi có dấu hiệu bất thường.'],
+  ['Meal Ring Active và Active Pro khác nhau thế nào?', 'Cả hai cùng đo nhịp tim, SpO₂, giấc ngủ, HRV, nhiệt độ cơ thể và vận động 24/7. Active Pro làm từ hợp kim titan, dùng chip Nordic nRF54L15 cùng cảm biến GOODiX + 6 trục, và được AI phân tích toàn diện hơn: khuyến nghị dinh dưỡng, lối sống và nhắc bạn khi chỉ số thay đổi khác thường.'],
   ['Nhẫn có chống nước không? Pin dùng được bao lâu?', 'Cả hai phiên bản đạt chuẩn chống nước 5ATM (~50m), có thể đeo khi rửa tay, tắm hay đi mưa. Mỗi lần sạc dùng được khoảng 5–7 ngày tuỳ tần suất đo.'],
   ['Làm sao để chọn đúng size nhẫn?', `Nhẫn có size 7 đến 12. Bạn có thể tự đo chu vi ngón tay bằng một dải giấy và đối chiếu bảng quy đổi ở mục <a href="${u('/#chon-size')}">Hướng dẫn chọn size</a>, hoặc gọi hotline để được tư vấn.`],
   ['Thiết bị dùng với ứng dụng nào?', 'Nhẫn Meal Ring và cân Meal Fit Insight đồng bộ qua Bluetooth với ứng dụng the Meal trên Android và iOS. Mọi chỉ số được gom về một nơi, AI chấm điểm và gợi ý hành động mỗi ngày.'],
@@ -225,6 +248,13 @@ const FAQS = [
 ];
 function faq() {
   return `<div class="faq">${FAQS.map((f, i) => `<details${i === 0 ? ' open' : ''}><summary>${f[0]}</summary><div class="ans">${f[1]}</div></details>`).join('')}</div>`;
+}
+
+// Đồng ý xử lý dữ liệu cá nhân phải là hành động rõ ràng (Nghị định 13/2023) — không đồng ý ngầm.
+function consentField(id, purpose) {
+  return `<div class="field consent"><label class="check" for="${id}"><input type="checkbox" id="${id}" name="consent" value="yes" required aria-describedby="${id}-err">
+    <span>Tôi đồng ý để the.Meal sử dụng thông tin trên để ${purpose}, theo <a href="${u('/chinh-sach/bao-mat')}" target="_blank" rel="noopener">Chính sách bảo mật</a>. <span class="req" aria-hidden="true">*</span></span></label>
+    <p class="err" id="${id}-err">${icon('alert')} Vui lòng tích ô đồng ý để chúng tôi có thể liên hệ với bạn.</p></div>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -251,7 +281,7 @@ function home() {
       </div>
       <div class="visual">
         <span class="ring-dash" aria-hidden="true"></span>
-        <div class="orb"><img src="${u(p.image)}" alt="${esc(p.gallery[0].alt)}" width="720" height="720"${h === 'h1' ? ' fetchpriority="high"' : ' loading="lazy"'}></div>
+        <div class="orb"><img src="${u(p.image)}"${srcset(p.image, '(max-width:860px) 80vw, 480px')} alt="${esc(p.gallery[0].alt)}" width="720" height="720"${h === 'h1' ? ' fetchpriority="high"' : ' loading="lazy"'}></div>
         ${chips.map(c => chip(...c)).join('')}
       </div>
     </div>
@@ -266,7 +296,7 @@ function home() {
       note: 'Size 7–12 · Đen / Bạc',
       chips: [['cf-1', 'heart', 'Nhịp tim', 'Liên tục 24/7'], ['cf-2', 'moon', 'Giấc ngủ', 'Chấm điểm mỗi đêm'], ['cf-3', 'droplet', 'SpO₂', 'Oxy trong máu']] })}
     ${slide(P, 'navy', { eyebrow: 'Meal Ring Active Pro · Cao cấp',
-      title: 'Theo dõi sâu hơn. <span class="hl">Cảnh báo sớm hơn.</span>',
+      title: 'Theo dõi sâu hơn. <span class="hl">Hiểu mình rõ hơn.</span>',
       lead: 'Hợp kim titan 3g, chip Nordic nRF54L15 và AI the Meal phân tích toàn diện — khuyến nghị dinh dưỡng, lối sống mỗi ngày.',
       note: 'Bản titan · Size 7–12',
       chips: [['cf-1', 'sparkles', 'AI hỗ trợ', 'Gợi ý cá nhân hoá'], ['cf-2', 'activity', 'HRV', 'Cân bằng căng thẳng'], ['cf-3', 'thermometer', 'Thân nhiệt', 'Theo dõi xu hướng']] })}
@@ -381,7 +411,7 @@ function home() {
 
 <section class="section section--mint" id="can-thong-minh">
   <div class="wrap split rev">
-    <div class="split-media reveal"><img src="${u('/img/scale-stand.webp')}" alt="Người dùng đứng trên cân Meal Fit Insight" width="1000" height="1000" loading="lazy"></div>
+    <div class="split-media reveal"><img src="${u('/img/scale-stand.webp')}"${srcset('/img/scale-stand.webp', '(max-width:860px) 92vw, 540px')} alt="Người dùng đứng trên cân Meal Fit Insight" width="1000" height="1000" loading="lazy"></div>
     <div>
       <span class="eyebrow">Meal Fit Insight · Cân thông minh</span>
       <h2 class="h2">Thành phần cơ thể, <span class="hl">chính xác &amp; khoa học.</span></h2>
@@ -403,11 +433,11 @@ function home() {
       <h2 class="h2">Đeo mọi lúc, <span class="hl">đo mọi nơi.</span></h2>
     </div>
     <div class="life">
-      <figure class="reveal"><img src="${u('/img/life-badminton.webp')}" alt="Chơi cầu lông khi đeo nhẫn Meal Ring màu bạc" loading="lazy"><figcaption>Khi chơi thể thao</figcaption></figure>
-      <figure class="reveal"><img src="${u('/img/life-bottle.webp')}" alt="Đeo nhẫn màu đen khi tập luyện" loading="lazy"><figcaption>Tập luyện</figcaption></figure>
-      <figure class="reveal"><img src="${u('/img/scale-room.webp')}" alt="Đo thành phần cơ thể tại phòng khách" loading="lazy"><figcaption>Tại nhà</figcaption></figure>
-      <figure class="reveal"><img src="${u('/img/life-wrist.webp')}" alt="Nhẫn màu bạc trên tay" loading="lazy"><figcaption>Đi làm</figcaption></figure>
-      <figure class="reveal"><img src="${u('/img/scale-handle.webp')}" alt="Cầm tay cầm điện cực của cân" loading="lazy"><figcaption>Đo 8 điện cực</figcaption></figure>
+      <figure class="reveal"><img src="${u('/img/life-badminton.webp')}"${srcset('/img/life-badminton.webp', '(max-width:760px) 50vw, 400px')} alt="Chơi cầu lông khi đeo nhẫn Meal Ring màu bạc" width="1000" height="1000" loading="lazy"><figcaption>Khi chơi thể thao</figcaption></figure>
+      <figure class="reveal"><img src="${u('/img/life-bottle.webp')}"${srcset('/img/life-bottle.webp', '(max-width:760px) 50vw, 400px')} alt="Đeo nhẫn màu đen khi tập luyện" width="1000" height="1000" loading="lazy"><figcaption>Tập luyện</figcaption></figure>
+      <figure class="reveal"><img src="${u('/img/scale-room.webp')}"${srcset('/img/scale-room.webp', '(max-width:760px) 50vw, 400px')} alt="Đo thành phần cơ thể tại phòng khách" width="1000" height="1000" loading="lazy"><figcaption>Tại nhà</figcaption></figure>
+      <figure class="reveal"><img src="${u('/img/life-wrist.webp')}"${srcset('/img/life-wrist.webp', '(max-width:760px) 50vw, 400px')} alt="Nhẫn màu bạc trên tay" width="1000" height="1333" loading="lazy"><figcaption>Đi làm</figcaption></figure>
+      <figure class="reveal"><img src="${u('/img/scale-handle.webp')}"${srcset('/img/scale-handle.webp', '(max-width:760px) 50vw, 400px')} alt="Cầm tay cầm điện cực của cân" width="1000" height="1000" loading="lazy"><figcaption>Đo 8 điện cực</figcaption></figure>
     </div>
   </div>
 </section>
@@ -426,7 +456,7 @@ function home() {
   </div>
 </section>
 
-<section class="section section--white" id="danh-gia">
+${DEV ? `<section class="section section--white" id="danh-gia">
   <div class="wrap">
     <div class="sec-head center">
       <span class="eyebrow">Khách hàng nói gì</span>
@@ -435,10 +465,10 @@ function home() {
     <div class="empty">
       ${icon('star')}
       <h3 class="h3">Đánh giá đang được cập nhật</h3>
-      <p class="muted">Chúng tôi chỉ đăng phản hồi thật từ khách hàng đã mua. ${DEV ? todo('Gửi đánh giá + ảnh khách hàng để hiển thị tại đây') : ''}</p>
+      <p class="muted">Chúng tôi chỉ đăng phản hồi thật từ khách hàng đã mua. ${todo('Gửi đánh giá + ảnh khách hàng để hiển thị tại đây — mục này đang ẩn ở bản thật')}</p>
     </div>
   </div>
-</section>
+</section>` : ''}
 
 <section class="section section--navy on-dark" id="doi-tac">
   <div class="wrap split">
@@ -472,7 +502,7 @@ function home() {
         <div class="hero-ctas"><a class="btn btn-primary" href="${u('/san-pham')}">Chọn sản phẩm ${icon('arrow')}</a><a class="btn btn-ghost" href="tel:${C.hotlineRaw}">${icon('phone')} ${C.hotline}</a></div>
       </div>
       <div class="mini-prods" aria-hidden="true">
-        <img src="${u('/img/ring-active.webp')}" alt="" loading="lazy"><img src="${u('/img/ring-pro.webp')}" alt="" loading="lazy"><img src="${u('/img/scale.webp')}" alt="" loading="lazy" style="background:#fff">
+        <img src="${thumb('/img/ring-active.webp')}" alt="" width="120" height="120" loading="lazy"><img src="${thumb('/img/ring-pro.webp')}" alt="" width="120" height="120" loading="lazy"><img src="${thumb('/img/scale.webp')}" alt="" width="120" height="120" loading="lazy" style="background:#fff">
       </div>
     </div>
   </div>
@@ -484,8 +514,8 @@ function home() {
 function productLd(p) {
   return {
     '@context': 'https://schema.org', '@type': 'Product', name: p.name, description: p.summary,
-    image: p.gallery.filter(g => g.src).map(g => cfg.siteUrl + g.src), brand: { '@type': 'Brand', name: 'the.Meal' }, sku: p.id,
-    offers: { '@type': 'Offer', priceCurrency: 'VND', price: p.price, availability: 'https://schema.org/InStock', url: `${cfg.siteUrl}/san-pham/${p.slug}` }
+    image: p.gallery.filter(g => g.src).map(g => abs(g.src)), brand: { '@type': 'Brand', name: 'the.Meal' }, sku: p.id,
+    offers: { '@type': 'Offer', priceCurrency: 'VND', price: p.price, availability: 'https://schema.org/InStock', url: abs(`/san-pham/${p.slug}`) }
   };
 }
 
@@ -509,6 +539,7 @@ function productList() {
 function productPage(p) {
   const others = products.filter(o => o.id !== p.id);
   const isRing = p.sizes.length > 0;
+  const photoColor = p.colors.find(c => c.image); // màu có ảnh thật; các màu khác hiện ghi chú khi được chọn
   const connectSteps = [
     'Tải app the Meal trên CH Play hoặc App Store và cập nhật phiên bản mới nhất.',
     'Bật Bluetooth, cho phép the Meal kết nối với thiết bị ở gần.',
@@ -523,16 +554,17 @@ function productPage(p) {
   <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="${u('/')}">Trang chủ</a></li><li><a href="${u('/san-pham')}">Sản phẩm</a></li><li aria-current="page">${esc(p.name)}</li></ol></nav>
   <div class="pd">
     <div class="gallery" data-gallery>
-      <div class="g-main${p.dark ? '' : ' light'}" id="gMain"><img src="${u(p.gallery[0].src)}" alt="${esc(p.gallery[0].alt)}" width="720" height="720" fetchpriority="high"></div>
+      <div class="g-main${p.dark ? '' : ' light'}" id="gMain"><img src="${u(p.gallery[0].src)}"${srcset(p.gallery[0].src, '(max-width:900px) 92vw, 560px')} alt="${esc(p.gallery[0].alt)}" width="720" height="720" fetchpriority="high"></div>
+      <p class="hint" id="gNote" role="status" hidden></p>
       <div class="g-thumbs" role="group" aria-label="Ảnh sản phẩm">
-        ${p.gallery.map((g, i) => `<button type="button" aria-pressed="${i === 0}" aria-label="Xem ảnh ${i + 1}: ${esc(g.alt)}" ${g.video ? `data-video="${u(g.video)}" data-poster="${u(g.poster)}"` : `data-src="${u(g.src)}"`} data-alt="${esc(g.alt)}"><img src="${u(g.video ? g.poster : g.src)}" alt="" loading="lazy" width="76" height="76"></button>`).join('')}
+        ${p.gallery.map((g, i) => `<button type="button" aria-pressed="${i === 0}" aria-label="Xem ảnh ${i + 1}: ${esc(g.alt)}" ${g.video ? `data-video="${u(g.video)}" data-poster="${u(g.poster)}"` : `data-src="${u(g.src)}"`} data-alt="${esc(g.alt)}"><img src="${g.video ? u(g.poster) : thumb(g.src)}" alt="" loading="lazy" width="76" height="76"></button>`).join('')}
       </div>
     </div>
     <div class="pd-info" id="chon-tuy-chon">
       <span class="eyebrow">${esc(p.category)}</span>
       <h1>${esc(p.name)}</h1>
       <p class="lead" style="font-weight:600;color:var(--navy)">${esc(p.tagline)}</p>
-      <div class="price-row" style="margin:6px 0 14px"><span class="price">${vnd(p.price)}</span><span class="price-note">Đã gồm VAT ${DEV ? todo('xác nhận') : ''}</span></div>
+      <div class="price-row" style="margin:6px 0 14px"><span class="price">${vnd(p.price)}</span>${DEV ? `<span class="price-note">Đã gồm VAT ${todo('xác nhận rồi mới hiện ở bản thật')}</span>` : ''}</div>
       <p class="muted">${esc(p.summary)}</p>
       <ul class="p-specs">${p.highlights.map(h => `<li>${esc(h)}</li>`).join('')}</ul>
 
@@ -540,7 +572,7 @@ function productPage(p) {
         <div class="opt">
           <div class="opt-label" id="lblColor">Màu sắc: <span data-color-name style="font-weight:600;margin-right:auto;margin-left:6px">${esc(p.colors[0].name)}</span></div>
           <div class="swatches" role="radiogroup" aria-labelledby="lblColor">
-            ${p.colors.map((c, i) => `<button type="button" class="swatch" role="radio" aria-checked="${i === 0}" tabindex="${i === 0 ? 0 : -1}" data-color="${c.id}" data-name="${esc(c.name)}"><i style="background:${c.hex}"></i>${esc(c.name)}</button>`).join('')}
+            ${p.colors.map((c, i) => `<button type="button" class="swatch" role="radio" aria-checked="${i === 0}" tabindex="${i === 0 ? 0 : -1}" data-color="${c.id}" data-name="${esc(c.name)}"${c.image ? ` data-image="${u(c.image)}"` : (photoColor ? ` data-note="Chưa có ảnh màu ${esc(c.name)} — ảnh đang hiển thị là màu ${esc(photoColor.name)}."` : '')}><i style="background:${c.hex}"></i>${esc(c.name)}</button>`).join('')}
           </div>
         </div>
         ${isRing ? `<div class="opt field" id="sizeField">
@@ -563,7 +595,7 @@ function productPage(p) {
         <span>${icon('package')} Thanh toán khi nhận hàng</span>
         <span>${icon('shield')} Chứng nhận CE · FCC · RoHS</span>
         <span>${icon('phone')} Tư vấn ${C.hotline}</span>
-        <span>${icon('refresh')} Hỗ trợ đổi size ${DEV ? todo('xác nhận chính sách') : ''}</span>
+        ${DEV ? `<span>${icon('refresh')} Hỗ trợ đổi size ${todo('xác nhận chính sách rồi mới hiện ở bản thật')}</span>` : ''}
       </div>
     </div>
   </div>
@@ -608,7 +640,7 @@ function productPage(p) {
   <div><div style="font-size:13px;font-weight:600">${esc(p.name)}</div><span class="price">${vnd(p.price)}</span></div>
   <a class="btn btn-primary" href="#chon-tuy-chon" tabindex="-1">Mua ngay</a>
 </div>`;
-  return layout({ title: `${p.name} — ${p.tagline}`, path: `/san-pham/${p.slug}`, body, desc: `${p.name} giá ${vnd(p.price)}. ${p.summary}`.slice(0, 160), ogImage: p.image, jsonld: [productLd(p)], bodyClass: 'has-sticky' });
+  return layout({ title: `${p.name} — ${p.tagline}`, path: `/san-pham/${p.slug}`, body, desc: `${p.name} giá ${vnd(p.price)}. ${p.summary}`.slice(0, 160), ogImage: p.ogImage, jsonld: [productLd(p)], bodyClass: 'has-sticky' });
 }
 
 function cartPage() {
@@ -622,6 +654,7 @@ function cartPage() {
 }
 
 function checkoutPage() {
+  const hasBank = !!(cfg.bank.bin && cfg.bank.account);
   const shipText = cfg.shippingFee == null ? 'Xác nhận khi gọi chốt đơn' : (cfg.shippingFee === 0 ? 'Miễn phí' : vnd(cfg.shippingFee));
   const body = `
 <div class="wrap">
@@ -653,12 +686,13 @@ function checkoutPage() {
       <fieldset class="field" style="border:0;padding:0;margin:0"><legend>Phương thức thanh toán</legend>
         <div class="grid" style="gap:10px;margin-top:6px">
           <label class="radio-card"><input type="radio" name="payment" value="cod" checked><span><b>Thanh toán khi nhận hàng (COD)</b><span>Kiểm tra hàng rồi trả tiền cho nhân viên giao hàng.</span></span></label>
-          <label class="radio-card"><input type="radio" name="payment" value="bank"><span><b>Chuyển khoản ngân hàng</b><span>Nhận thông tin tài khoản / mã QR ngay sau khi đặt.</span></span></label>
+          <label class="radio-card"><input type="radio" name="payment" value="bank"><span><b>Chuyển khoản ngân hàng</b><span>${hasBank && !STATIC ? 'Nhận thông tin tài khoản / mã QR ngay sau khi đặt.' : 'Nhân viên the.Meal gửi thông tin tài khoản khi gọi xác nhận đơn.'}</span></span></label>
         </div>
       </fieldset>
+      ${consentField('co-consent', 'liên hệ xác nhận và giao đơn hàng')}
       <p class="form-alert" id="formAlert" role="alert"></p>
+      <div id="orderFallback" class="order-fallback" hidden></div>
       <button class="btn btn-primary btn-block" type="submit" id="placeBtn">Đặt hàng ${icon('arrow')}</button>
-      <p class="hint center" style="margin:0">Bằng việc đặt hàng, bạn đồng ý với <a href="${u('/chinh-sach/bao-mat')}">Chính sách bảo mật</a> của the.Meal.</p>
     </form>
     <aside class="summary" aria-labelledby="sumTitle">
       <h2 id="sumTitle">Đơn hàng của bạn</h2>
@@ -675,7 +709,7 @@ function checkoutPage() {
 
 function successPage(order) {
   if (!order) {
-    const body = `<div class="wrap" id="staticSuccess"><div class="success"><h1 class="h1">Đang tải thông tin đơn hàng…</h1><div class="hero-ctas" style="justify-content:center;margin-top:28px"><a class="btn btn-primary" href="${u('/')}">Về trang chủ</a></div></div></div>`;
+    const body = `<div class="wrap" id="staticSuccess"><div class="success"><h1 class="h1">Không tìm thấy đơn hàng</h1><p class="lead" style="margin-inline:auto">Nếu bạn vừa đặt hàng mà không thấy thông tin, vui lòng gọi <a href="tel:${C.hotlineRaw}">${C.hotline}</a> để được hỗ trợ.</p><div class="hero-ctas" style="justify-content:center;margin-top:28px"><a class="btn btn-primary" href="${u('/')}">Về trang chủ</a></div></div></div>`;
     return layout({ title: 'Đặt hàng thành công', path: '/dat-hang/thanh-cong', body, noindex: true });
   }
   const b = cfg.bank;
@@ -720,7 +754,7 @@ function contactPage() {
         <li><span class="ic">${icon('mail')}</span><div><small>Email</small><a href="mailto:${C.email}">${C.email}</a></div></li>
         <li><span class="ic">${icon('facebook')}</span><div><small>Fanpage</small><a href="${C.facebook}" target="_blank" rel="noopener">facebook.com/themeal.vn</a></div></li>
         <li><span class="ic">${icon('globe')}</span><div><small>Website</small><a href="${C.websiteUrl}" target="_blank" rel="noopener">${C.website}</a></div></li>
-        <li><span class="ic">${icon('clock')}</span><div><small>Giờ làm việc</small>${DEV ? todo() : 'Thứ 2 – Thứ 7'}</div></li>
+        ${C.workingHours ? `<li><span class="ic">${icon('clock')}</span><div><small>Giờ làm việc</small>${esc(C.workingHours)}</div></li>` : (DEV ? `<li><span class="ic">${icon('clock')}</span><div><small>Giờ làm việc</small>${todo('Đặt WORKING_HOURS — đang ẩn ở bản thật')}</div></li>` : '')}
       </ul>
       <h2 class="h3" style="margin-top:28px">Kênh chính thức &amp; cộng đồng</h2>
       <ul class="channels">${[...C.socials, ...C.communities].map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="ic">${icon(x.icon)}</span><span><b>${esc(x.label)}</b><small>${esc(x.note || ({ facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads' })[x.icon])}</small></span>${icon('arrow')}</a></li>`).join('')}</ul>
@@ -732,6 +766,7 @@ function contactPage() {
       <div class="field"><label for="c-phone">Số điện thoại <span class="req" aria-hidden="true">*</span></label><input class="input" id="c-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required><p class="err">${icon('alert')} Nhập số điện thoại gồm 10 số, ví dụ 0912 345 678.</p></div>
       <div class="field"><label for="c-product">Sản phẩm quan tâm</label><select class="select" id="c-product" name="product"><option value="">— Chọn sản phẩm —</option>${products.map(p => `<option>${p.name}</option>`).join('')}<option>Quà tặng doanh nghiệp</option></select></div>
       <div class="field"><label for="c-msg">Nội dung</label><textarea class="textarea" id="c-msg" name="message"></textarea></div>
+      ${consentField('c-consent', 'liên hệ tư vấn')}
       <p class="form-alert" role="alert"></p>
       <button class="btn btn-primary btn-block" type="submit">Gửi yêu cầu tư vấn</button>
     </form>
@@ -828,6 +863,7 @@ function partnerPage() {
         <div class="field"><label for="p-prov">Tỉnh / Thành phố</label><input class="input" id="p-prov" name="province" autocomplete="address-level1"></div>
       </div>
       <div class="field"><label for="p-msg">Nhu cầu hợp tác</label><textarea class="textarea" id="p-msg" name="message" placeholder="Quy mô, số điểm bán/hội viên, sản phẩm quan tâm…"></textarea></div>
+      ${consentField('p-consent', 'liên hệ tư vấn hợp tác')}
       <p class="form-alert" role="alert"></p>
       <button class="btn btn-primary btn-block" type="submit">Gửi đăng ký hợp tác</button>
     </form>
@@ -844,16 +880,40 @@ const POLICIES = [
   { slug: 'bao-mat', title: 'Chính sách bảo mật' }
 ];
 const POLICY_BODY = {
-  'thanh-toan': `<p>the.Meal hỗ trợ hai hình thức thanh toán:</p><ul><li><b>Thanh toán khi nhận hàng (COD):</b> bạn kiểm tra hàng và thanh toán cho nhân viên giao hàng.</li><li><b>Chuyển khoản ngân hàng:</b> thông tin tài khoản và mã QR hiển thị ngay sau khi đặt hàng. Vui lòng ghi đúng mã đơn trong nội dung chuyển khoản.</li></ul>`,
-  'bao-mat': `<p>the.Meal chỉ thu thập thông tin cần thiết để xử lý đơn hàng (họ tên, số điện thoại, địa chỉ, email nếu có) và không chia sẻ cho bên thứ ba ngoài đơn vị vận chuyển.</p><p>Dữ liệu sức khoẻ trên ứng dụng the Meal được quản lý theo điều khoản riêng của ứng dụng.</p>`
+  'thanh-toan': () => `<p>the.Meal hỗ trợ hai hình thức thanh toán:</p><ul><li><b>Thanh toán khi nhận hàng (COD):</b> bạn kiểm tra hàng và thanh toán cho nhân viên giao hàng.</li><li><b>Chuyển khoản ngân hàng:</b> ${cfg.bank.bin && cfg.bank.account && !STATIC ? 'thông tin tài khoản và mã QR hiển thị ngay sau khi đặt hàng' : 'nhân viên the.Meal gửi thông tin tài khoản khi gọi xác nhận đơn'}. Vui lòng ghi đúng mã đơn trong nội dung chuyển khoản.</li></ul>`,
+  // Mô tả đúng những gì website đang làm với dữ liệu. Nên nhờ bộ phận pháp lý rà soát trước khi chạy quảng cáo.
+  'bao-mat': () => `<h2 class="h3">1. Thông tin chúng tôi thu thập</h2>
+<p>Khi bạn đặt hàng hoặc gửi yêu cầu tư vấn: họ tên, số điện thoại, tỉnh/thành, địa chỉ nhận hàng, email (nếu có), tên doanh nghiệp (nếu có) và nội dung bạn nhập. Website không thu thập dữ liệu sức khoẻ.</p>
+<h2 class="h3">2. Mục đích sử dụng</h2>
+<p>Chỉ để liên hệ xác nhận, giao hàng, chăm sóc sau bán và tư vấn theo yêu cầu của bạn. Chúng tôi chỉ xử lý khi bạn đã tích ô đồng ý trên biểu mẫu.</p>
+<h2 class="h3">3. Chia sẻ thông tin</h2>
+<p>Không bán hay cho thuê dữ liệu. Thông tin cần thiết (tên, số điện thoại, địa chỉ) chỉ được chuyển cho đơn vị vận chuyển để giao hàng.</p>
+<h2 class="h3">4. Lưu trữ</h2>
+<p>Giỏ hàng và thông tin bạn đã nhập được lưu ngay trên trình duyệt của bạn để lần sau không phải nhập lại; bạn có thể xoá bằng cách xoá dữ liệu trang web trong trình duyệt. Đơn hàng được lưu trên hệ thống quản lý đơn của the.Meal.</p>
+<h2 class="h3">5. Quyền của bạn</h2>
+<p>Bạn có quyền yêu cầu xem, sửa, xoá dữ liệu hoặc rút lại sự đồng ý bất kỳ lúc nào qua email <a href="mailto:${C.email}">${C.email}</a> hoặc hotline <a href="tel:${C.hotlineRaw}">${C.hotline}</a>.</p>
+<p>Dữ liệu sức khoẻ trên ứng dụng the Meal được quản lý theo điều khoản riêng của ứng dụng.</p>`
 };
+// Ở bản thật chỉ hiện các chính sách đã có nội dung; trang trống không được lộ ra ngoài.
+const publishedPolicies = () => POLICIES.filter(p => DEV || POLICY_BODY[p.slug]);
 function policyPage(slug) {
   const p = POLICIES.find(x => x.slug === slug);
   if (!p) return null;
-  const content = POLICY_BODY[slug] || `<p>${todo('Nội dung chính sách đang chờ the.Meal cung cấp')}</p><p>Trong thời gian chờ, vui lòng liên hệ hotline <a href="tel:${C.hotlineRaw}">${C.hotline}</a> để được hỗ trợ.</p>`;
+  const content = POLICY_BODY[slug] ? POLICY_BODY[slug]() : `${DEV ? `<p>${todo('Nội dung chính sách đang chờ the.Meal cung cấp')}</p>` : ''}<p>Vui lòng liên hệ hotline <a href="tel:${C.hotlineRaw}">${C.hotline}</a> hoặc email <a href="mailto:${C.email}">${C.email}</a> để được tư vấn chi tiết về ${p.title.toLowerCase()}.</p>`;
   const body = `<div class="wrap"><nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="${u('/')}">Trang chủ</a></li><li aria-current="page">${p.title}</li></ol></nav>
   <article class="prose"><h1 class="h1">${p.title}</h1>${content}</article></div>`;
-  return layout({ title: p.title, path: `/chinh-sach/${slug}`, body });
+  return layout({ title: p.title, path: `/chinh-sach/${slug}`, body, noindex: !POLICY_BODY[slug] });
+}
+
+/* ---------- SEO files (dùng chung cho server và bản tĩnh) ---------- */
+function sitemapPaths() {
+  return ['/', '/san-pham', '/hop-tac', ...products.map(p => '/san-pham/' + p.slug), '/lien-he', ...(SHOW_NEWS ? ['/tin-tuc'] : []), ...publishedPolicies().filter(p => POLICY_BODY[p.slug]).map(p => '/chinh-sach/' + p.slug)];
+}
+function sitemapXml() {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${sitemapPaths().map(p => `<url><loc>${esc(abs(p))}</loc></url>`).join('')}</urlset>\n`;
+}
+function robotsTxt() {
+  return `User-agent: *\nDisallow: ${u('/admin')}\nDisallow: ${u('/gio-hang')}\nDisallow: ${u('/thanh-toan')}\nDisallow: ${u('/dat-hang/')}\nSitemap: ${abs('/sitemap.xml')}\n`;
 }
 
 function notFound(title = 'Không tìm thấy trang', msg = 'Trang bạn tìm có thể đã được đổi tên hoặc không tồn tại.') {
@@ -881,4 +941,4 @@ function adminPage(orders, leads = []) {
   return layout({ title: 'Quản trị', path: '/admin', body, noindex: true });
 }
 
-module.exports = { partnerPage, home, productList, productPage, cartPage, checkoutPage, successPage, contactPage, newsPage, policyPage, notFound, adminPage, POLICIES, vnd, esc };
+module.exports = { partnerPage, home, productList, productPage, cartPage, checkoutPage, successPage, contactPage, newsPage, policyPage, notFound, adminPage, sitemapXml, robotsTxt, POLICIES, vnd, esc };

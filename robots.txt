@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /project20/admin
+Disallow: /project20/gio-hang
+Disallow: /project20/thanh-toan
+Disallow: /project20/dat-hang/
+Sitemap: https://tranvanminhhieu06-gif.github.io/project20/sitemap.xml

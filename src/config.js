@@ -30,8 +30,13 @@ module.exports = {
       { icon: 'tiktok', label: 'Ăn không nhầm', note: 'TikTok', url: 'https://www.tiktok.com/@ankhongnham' },
       { icon: 'tiktok', label: 'Ăn Ngon Giữ Dáng', note: 'TikTok', url: 'https://www.tiktok.com/@n.ngon.gi.dng' }
     ],
+    workingHours: env.WORKING_HOURS || '',              // TODO: VD "8:00 – 17:30, Thứ 2 – Thứ 7"
     mapEmbed: 'https://www.google.com/maps?q=KĐT+Tây+Nam+Linh+Đàm,+Hoàng+Liệt,+Hà+Nội&output=embed'
   },
+  // Bản tĩnh (GitHub Pages) không có server: đơn hàng & form liên hệ được gửi tới URL này
+  // (VD: Google Apps Script Web App — xem scripts/google-apps-script.gs). Để trống => khách
+  // được hướng dẫn gọi/nhắn Zalo kèm nội dung đơn soạn sẵn, KHÔNG báo "đặt hàng thành công" giả.
+  orderEndpoint: env.ORDER_ENDPOINT || '',
   // Phí vận chuyển: null = "Nhân viên xác nhận khi gọi chốt đơn". Đặt số (VND) để tính cố định.
   shippingFee: env.SHIPPING_FEE ? Number(env.SHIPPING_FEE) : null,
   freeShipFrom: env.FREESHIP_FROM ? Number(env.FREESHIP_FROM) : null,

@@ -34,6 +34,8 @@ app.use(express.static(path.join(__dirname, 'public'), { maxAge: process.env.NOD
 
 /* ---------- Simple in-memory rate limit for POST APIs ---------- */
 const hits = new Map();
+// Dọn các IP đã hết cửa sổ để Map không phình mãi.
+setInterval(() => { const now = Date.now(); for (const [k, arr] of hits) if (!arr.some(t => now - t < 60_000)) hits.delete(k); }, 5 * 60_000).unref();
 function rateLimit(max = 8, windowMs = 60_000) {
   return (req, res, next) => {
     const k = req.ip + req.path, now = Date.now();
@@ -66,16 +68,14 @@ app.get('/chinh-sach/:slug', (req, res) => {
 });
 
 /* ---------- SEO ---------- */
-app.get('/robots.txt', (req, res) => res.type('text').send(`User-agent: *\nDisallow: /admin\nDisallow: /gio-hang\nDisallow: /thanh-toan\nSitemap: ${cfg.siteUrl}/sitemap.xml\n`));
-app.get('/sitemap.xml', (req, res) => {
-  const urls = ['/', '/san-pham', '/hop-tac', ...products.map(p => '/san-pham/' + p.slug), '/lien-he', '/tin-tuc', ...views.POLICIES.map(p => '/chinh-sach/' + p.slug)];
-  res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>${cfg.siteUrl}${u}</loc></url>`).join('')}</urlset>`);
-});
+app.get('/robots.txt', (req, res) => res.type('text').send(views.robotsTxt()));
+app.get('/sitemap.xml', (req, res) => res.type('application/xml').send(views.sitemapXml()));
 
 /* ---------- API ---------- */
 app.get('/api/products', (req, res) => res.json(products.map(p => ({ id: p.id, name: p.name, price: p.price, image: p.image, colors: p.colors, sizes: p.sizes }))));
 
 const PHONE_RE = /^(0|\+84)(3|5|7|8|9)\d{8}$/;
+const consented = v => v === true || v === 'yes';
 const clean = (s, max = 200) => String(s ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
 
 app.post('/api/orders', rateLimit(6), async (req, res) => {
@@ -91,6 +91,7 @@ app.post('/api/orders', rateLimit(6), async (req, res) => {
   if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) errors.email = 'Email chưa đúng định dạng.';
   if (!customer.province) errors.province = 'Vui lòng nhập tỉnh/thành phố.';
   if (customer.address.length < 5) errors.address = 'Vui lòng nhập địa chỉ cụ thể.';
+  if (!consented(b.consent)) errors.consent = 'Vui lòng đồng ý với Chính sách bảo mật để đặt hàng.';
   const payment = b.payment === 'bank' ? 'bank' : 'cod';
 
   const items = [];
@@ -127,6 +128,7 @@ app.post('/api/contact', rateLimit(5), (req, res) => {
   if (entry.name.length < 2) errors.name = 'Vui lòng nhập họ tên.';
   if (!PHONE_RE.test(entry.phone)) errors.phone = 'Số điện thoại chưa đúng.';
   if (entry.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email)) errors.email = 'Email chưa đúng định dạng.';
+  if (!consented(b.consent)) errors.consent = 'Vui lòng đồng ý với Chính sách bảo mật.';
   if (Object.keys(errors).length) return res.status(400).json({ errors });
   const all = readJson(CONTACTS); all.push(entry); writeJson(CONTACTS, all);
   notifyTelegram(null, entry).catch(() => {});
@@ -148,19 +150,30 @@ async function notifyTelegram(order, contact) {
 function adminAuth(req, res, next) {
   const { user, pass } = cfg.admin;
   if (!user || !pass) return res.status(503).type('text').send('Trang quản trị chưa bật. Đặt ADMIN_USER và ADMIN_PASS trong biến môi trường.');
-  const [u, p] = Buffer.from((req.headers.authorization || '').replace(/^Basic /, ''), 'base64').toString().split(':');
+  const raw = Buffer.from((req.headers.authorization || '').replace(/^Basic /, ''), 'base64').toString();
+  const sep = raw.indexOf(':'); // mật khẩu được phép chứa dấu ':'
+  const u = sep > 0 ? raw.slice(0, sep) : '', p = sep > 0 ? raw.slice(sep + 1) : '';
   const ok = u && p && crypto.timingSafeEqual(Buffer.from(crypto.createHash('sha256').update(u + ':' + p).digest()), Buffer.from(crypto.createHash('sha256').update(user + ':' + pass).digest()));
   if (!ok) return res.set('WWW-Authenticate', 'Basic realm="the.Meal admin"').status(401).send('Cần đăng nhập');
   next();
 }
 app.get('/admin', adminAuth, (req, res) => html(res, views.adminPage(readJson(ORDERS), readJson(CONTACTS))));
-app.post('/admin/orders/:code/status', adminAuth, (req, res) => {
+// Chống CSRF: trình duyệt tự gửi kèm Basic Auth, nên chỉ nhận POST xuất phát từ chính trang admin.
+function sameOrigin(req, res, next) {
+  const src = req.get('origin') || req.get('referer') || '';
+  let host = '';
+  try { host = new URL(src).host; } catch {}
+  if (host !== req.get('host')) return res.status(403).type('text').send('Yêu cầu không hợp lệ.');
+  next();
+}
+app.post('/admin/orders/:code/status', adminAuth, sameOrigin, (req, res) => {
   const all = readJson(ORDERS); const o = all.find(x => x.code === req.params.code);
   if (o && ['Mới', 'Đã xác nhận', 'Đang giao', 'Hoàn tất', 'Huỷ'].includes(req.body.status)) { o.status = req.body.status; writeJson(ORDERS, all); }
   res.redirect('/admin');
 });
 app.get('/admin/orders.csv', adminAuth, (req, res) => {
-  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  // Chặn chèn công thức Excel (=, +, -, @ ở đầu ô) từ dữ liệu khách nhập.
+  const q = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return `"${t.replace(/"/g, '""')}"`; };
   const lines = [['Mã', 'Ngày', 'Trạng thái', 'Họ tên', 'SĐT', 'Email', 'Tỉnh/TP', 'Địa chỉ', 'Sản phẩm', 'Tổng', 'Thanh toán', 'Ghi chú'].map(q).join(',')];
   for (const o of readJson(ORDERS)) lines.push([o.code, o.createdAt, o.status, o.customer.name, o.customer.phone, o.customer.email, o.customer.province, o.customer.address,
     o.items.map(i => `${i.name} ${i.colorName}${i.size ? ' S' + i.size : ''} x${i.qty}`).join('; '), o.total, o.payment, o.customer.note].map(q).join(','));
